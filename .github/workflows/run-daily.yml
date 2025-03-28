@@ -1,0 +1,75 @@
+name: Workday Twice Daily Auto Run
+
+on:
+  schedule:
+    - cron: '25 1 * * 1-5'  # 北京时间 09:35 - 8
+    - cron: '58 6 * * 1-5'   # 北京时间 15:01 - 8
+  workflow_dispatch:
+
+jobs:
+  run-scripts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          pip install pandas requests openpyxl
+
+      - name: Run daat.py with retry
+        run: |
+          echo "Running daat.py with up to 3 retries..."
+          success=0
+          for i in {1..3}; do
+            python daat.py && success=1 && break || echo "Retry #$i failed, retrying..."
+            sleep 5
+          done
+          if [ $success -eq 0 ]; then
+            echo "daat.py failed after retries"
+            curl -X POST -H "Content-Type: application/json" \
+              -d '{"text": "⚠️ GitHub Actions 警告：daat.py 执行失败（3次重试后）"}' \
+              https://open.feishu.cn/open-apis/bot/v2/hook/f129a3a4-9860-4917-9b14-5e63f9bf8e98
+          fi
+        continue-on-error: true
+
+      - name: Run push.py with retry
+        run: |
+          echo "Running push.py with up to 3 retries..."
+          success=0
+          for i in {1..3}; do
+            python push.py && success=1 && break || echo "Retry #$i failed, retrying..."
+            sleep 5
+          done
+          if [ $success -eq 0 ]; then
+            echo "push.py failed after retries"
+            curl -X POST -H "Content-Type: application/json" \
+              -d '{"text": "⚠️ GitHub Actions 警告：push.py 执行失败（3次重试后）"}' \
+              https://open.feishu.cn/open-apis/bot/v2/hook/f129a3a4-9860-4917-9b14-5e63f9bf8e98
+          fi
+        continue-on-error: true
+        
+      - name: List changed files before commit
+        run: |
+          echo "🗂️ 当前更改文件如下："
+          git status
+
+      - name: Commit and Push Generated Files
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+      
+          git add market_data/*.csv || true
+          git add *.md || true
+          git add push_log.csv || true
+      
+          git commit -m "🤖 自动更新市场数据和报告文件：$(date +'%Y-%m-%d %H:%M:%S')" || echo "Nothing to commit"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

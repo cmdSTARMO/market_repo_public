@@ -1,9 +1,9 @@
 name: Workday Twice Daily Auto Run
 
 on:
-  schedule:
-    - cron: '25 1 * * 1-5'  # 北京时间 09:35 - 8
-    - cron: '58 6 * * 1-5'   # 北京时间 15:01 - 8
+  # schedule:
+  #   - cron: '25 1 * * 1-5'  # 北京时间 09:35 - 8
+  #   - cron: '58 6 * * 1-5'   # 北京时间 15:01 - 8
   workflow_dispatch:
 
 jobs:
